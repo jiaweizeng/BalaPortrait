@@ -1,8 +1,10 @@
 package portrait.bala.portrait;
 
 import android.Manifest;
+import android.content.ContentValues;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Matrix;
@@ -42,6 +44,9 @@ public class MainActivity extends AppCompatActivity {
     private ImageView headImage = null;
     private String mExtStorDir;
     private Uri mUriPath;
+
+    private final int PERMISSION_READ_AND_CAMERA =0;//读和相机权限
+    private final int PERMISSION_READ =1;//读取权限
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -54,7 +59,9 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onClick(View v) {
-                choseHeadImageFromGallery();
+//                choseHeadImageFromGallery();
+                checkReadPermission();
+
             }
         });
 
@@ -68,6 +75,8 @@ public class MainActivity extends AppCompatActivity {
             }
         });
     }
+
+
 
     // 从本地相册选取图片作为头像
     private void choseHeadImageFromGallery() {
@@ -100,12 +109,14 @@ public class MainActivity extends AppCompatActivity {
             File pictureFile = new File(savePath, IMAGE_FILE_NAME);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+
                 pictureUri = FileProvider.getUriForFile(this, getPackageName()+".fileProvider", pictureFile);
     /*ContentValues contentValues = new ContentValues(1);
     contentValues.put(MediaStore.Images.Media.DATA, pictureFile.getAbsolutePath());
     pictureUri = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues);*/
             } else {
                 intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
                 pictureUri = Uri.fromFile(pictureFile);
             }
             /*if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -121,6 +132,31 @@ public class MainActivity extends AppCompatActivity {
                 intent.putExtra(MediaStore.EXTRA_OUTPUT,
                         pictureUri);
                 startActivityForResult(intent, CODE_CAMERA_REQUEST);
+            }
+        }
+    }
+
+    public Uri getImageContentUri(File imageFile) {
+        String filePath = imageFile.getAbsolutePath();
+        Cursor cursor = getContentResolver().query(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                new String[] { MediaStore.Images.Media._ID },
+                MediaStore.Images.Media.DATA + "=? ",
+                new String[] { filePath }, null);
+
+        if (cursor != null && cursor.moveToFirst()) {
+            int id = cursor.getInt(cursor
+                    .getColumnIndex(MediaStore.MediaColumns._ID));
+            Uri baseUri = Uri.parse("content://media/external/images/media");
+            return Uri.withAppendedPath(baseUri, "" + id);
+        } else {
+            if (imageFile.exists()) {
+                ContentValues values = new ContentValues();
+                values.put(MediaStore.Images.Media.DATA, filePath);
+                return getContentResolver().insert(
+                        MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+            } else {
+                return null;
             }
         }
     }
@@ -145,7 +181,8 @@ public class MainActivity extends AppCompatActivity {
                     File tempFile = new File(
                             Environment.getExternalStorageDirectory(),
                             IMAGE_FILE_NAME);
-                    cropRawPhoto(Uri.fromFile(tempFile));
+//                    cropRawPhoto(Uri.fromFile(tempFile));
+                    cropRawPhoto(getImageContentUri(tempFile));
                 } else {
                     Toast.makeText(getApplication(), "没有SDCard!", Toast.LENGTH_LONG)
                             .show();
@@ -173,20 +210,48 @@ public class MainActivity extends AppCompatActivity {
     private void checkStoragePermission() {
         int result = ActivityCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE);
         if (result == PackageManager.PERMISSION_DENIED) {
-            String[] permissions = {Manifest.permission.WRITE_EXTERNAL_STORAGE};
-            ActivityCompat.requestPermissions(this, permissions, 0);
+            String[] permissions = {/*Manifest.permission.WRITE_EXTERNAL_STORAGE
+                    ,*/Manifest.permission.CAMERA,Manifest.permission.READ_EXTERNAL_STORAGE};
+            ActivityCompat.requestPermissions(this, permissions, PERMISSION_READ_AND_CAMERA);
         } else {
             choseHeadImageFromCameraCapture();
         }
+    }
+
+
+    private void checkReadPermission() {
+        int permission = ActivityCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE);
+        if (permission==PackageManager.PERMISSION_DENIED){
+            String[] permissions ={Manifest.permission.READ_EXTERNAL_STORAGE};
+            ActivityCompat.requestPermissions(this,permissions, PERMISSION_READ);
+        }else {
+            choseHeadImageFromGallery();
+        }
+
     }
 
     //权限申请回调
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            choseHeadImageFromCameraCapture();
+
+        switch (requestCode){
+            case PERMISSION_READ_AND_CAMERA:
+                for (int i=0;i<grantResults.length;i++){
+                    if (grantResults[i]==PackageManager.PERMISSION_DENIED){
+                        Toast.makeText(this, "why ??????", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                }
+                choseHeadImageFromCameraCapture();
+                break;
+            case PERMISSION_READ:
+                if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    choseHeadImageFromGallery();
+                }
+                break;
         }
+
     }
     /**
      * 裁剪原始的图片
@@ -236,9 +301,9 @@ public class MainActivity extends AppCompatActivity {
         try {
             if (intent != null) {
 
-                Bitmap bitmap = imageZoom(b);//看个人需求，可以不压缩
-                headImage.setImageBitmap(bitmap);
-                long millis = System.currentTimeMillis();
+//                Bitmap bitmap = imageZoom(b);//看个人需求，可以不压缩
+                headImage.setImageBitmap(b);
+//                long millis = System.currentTimeMillis();
                 /*File file = FileUtil.saveFile(mExtStorDir, millis+CROP_IMAGE_FILE_NAME, bitmap);
                 if (file!=null){
                     //传递新的头像信息给我的界面
