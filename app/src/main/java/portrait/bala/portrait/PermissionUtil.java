@@ -7,7 +7,7 @@ package portrait.bala.portrait;
 public class PermissionUtil {
 
     public static final String READ_MEDIA_IMAGES = "android.permission.READ_MEDIA_IMAGES";
-    public static final String POST_NOTIFICATIONS = "android.permission.POST_NOTIFICATIONS";
+    public static final String READ_EXTERNAL_STORAGE = "android.permission.READ_EXTERNAL_STORAGE";
 
     public static boolean isSdkInt33() {
         return getSdkInt() >= 33;
@@ -18,7 +18,7 @@ public class PermissionUtil {
     }
 
     public static String getReadImgPermission() {
-        String picPermission = "android.permission.READ_EXTERNAL_STORAGE";
+        String picPermission = PermissionUtil.READ_EXTERNAL_STORAGE;
         if (PermissionUtil.isSdkInt33()) {
             picPermission = PermissionUtil.READ_MEDIA_IMAGES;
         }
