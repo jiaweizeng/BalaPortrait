@@ -5,6 +5,7 @@ import android.app.Activity;
 import android.content.ContentValues;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
@@ -12,6 +13,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
@@ -73,6 +75,7 @@ public class MainActivity extends ComponentActivity {
                 });
         albumLauncher =
                 registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
+                    Log.d("eeeeee", "getData===" + result.getData().getData());
                     if (result.getResultCode() != Activity.RESULT_OK) return;
                     try {
                         if (isToCrop) {
@@ -81,6 +84,7 @@ public class MainActivity extends ComponentActivity {
                             setImageToHeadView(result.getData().getData());
                         }
                     } catch (Exception e) {
+                        Log.d("eeeeee", "albumLauncher====Exception");
                         e.printStackTrace();
                     }
 
@@ -179,10 +183,10 @@ public class MainActivity extends ComponentActivity {
 
         // 7.0 使用 FileProvider 并赋予临时权限
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            intent.setFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+            intent.setFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION/* | Intent.FLAG_GRANT_WRITE_URI_PERMISSION*/);
         }
         File temporaryFile = buildTemporaryFile();
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        if (Build.VERSION.SDK_INT == Build.VERSION_CODES.R || Build.VERSION.SDK_INT > Build.VERSION_CODES.S) { //R = Android 11   S = Android 12
             createCropImageFile();
             intent.putExtra(MediaStore.EXTRA_OUTPUT, fileUri);
         } else {
@@ -193,7 +197,7 @@ public class MainActivity extends ComponentActivity {
 
     public File buildTemporaryFile() {
         File file;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {   //Android 10
             file = new File(Environment.getExternalStoragePublicDirectory(DIRECTORY_PICTURES),
                     System.currentTimeMillis() + ".jpg");
         } else {
@@ -207,9 +211,24 @@ public class MainActivity extends ComponentActivity {
             long currentTimeMillis = System.currentTimeMillis();
             String fileName = "IMG_" + currentTimeMillis + "_CROP.jpg";
             File imgFile = new File(Environment.getExternalStoragePublicDirectory(DIRECTORY_PICTURES) + File.separator + fileName);
+            String absolutePath = imgFile.getAbsolutePath();
+            Cursor cursor = getContentResolver().query(
+                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                    new String[]{MediaStore.Images.Media._ID},
+                    MediaStore.Images.Media.DATA + "=? ",
+                    new String[]{absolutePath}, null);
+            if (cursor != null && cursor.moveToFirst()) {
+                int cursorColumnIndex = cursor.getColumnIndex(MediaStore.MediaColumns._ID);
+                if (cursorColumnIndex >= 0) {
+                    int id = cursor.getInt(cursorColumnIndex);
+                    Uri baseUri = Uri.parse("content://media/external/images/media");
+                    fileUri = Uri.withAppendedPath(baseUri, "" + id);
+                    return;
+                }
+            }
             // 通过 MediaStore API 插入file 为了拿到系统裁剪要保存到的uri（因为App没有权限不能访问公共存储空间，需要通过 MediaStore API来操作）
             ContentValues values = new ContentValues();
-            values.put(MediaStore.Images.Media.DATA, imgFile.getAbsolutePath());
+            values.put(MediaStore.Images.Media.DATA, absolutePath);
             values.put(MediaStore.Images.Media.DISPLAY_NAME, fileName);
             values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
             fileUri = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);

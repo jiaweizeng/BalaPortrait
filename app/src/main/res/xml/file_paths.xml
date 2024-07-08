@@ -2,4 +2,6 @@
 <paths>
     <external-path path="Android/data/portrait.bala.portrait/" name="files_root" />
     <external-path path="." name="external_storage_root" />
+    <external-path path="." name="Pictures" />
+    <cache-path name="cache_files" path="cache/*"/>
 </paths>
